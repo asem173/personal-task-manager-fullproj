@@ -2,7 +2,7 @@ $(document).ready(function () {
     // Function to show a specific form and hide others
     function showForm(formToShow) {
         // Hide all forms
-        $('#loginForm, #registerForm, #forgotPasswordForm').hide();
+        $('#loginForm, #registerForm, #forgotPasswordForm, #resetPasswordForm').hide();
 
         // Show the specified form
         $(formToShow).show();
@@ -29,6 +29,16 @@ $(document).ready(function () {
         showForm('#loginForm');
     });
 
+    $('#showLoginFromReset').on('click', function (e) {
+        e.preventDefault();
+        showForm('#loginForm');
+    });
+
+    $('#showResetPassword').on('click', function (e) {
+        e.preventDefault();
+        showForm('#resetPasswordForm');
+    });
+
     // Password visibility toggles
     function setupPasswordToggle(toggleButtonId, passwordInputId) {
         $('#' + toggleButtonId).on('click', function () {
@@ -49,6 +59,8 @@ $(document).ready(function () {
     setupPasswordToggle('togglePassword', 'password');
     setupPasswordToggle('toggleRegPassword', 'regPassword');
     setupPasswordToggle('toggleConfirmPassword', 'confirmPassword');
+    setupPasswordToggle('toggleNewPassword', 'newPassword');
+    setupPasswordToggle('toggleConfirmNewPassword', 'confirmNewPassword');
 
     // Form submission handlers (for future API integration)
     $('#loginForm').on('submit', function (e) {
@@ -85,15 +97,17 @@ $(document).ready(function () {
 
                 // Store token if provided
                 if (data.token) {
+                    console.log(data);
                     localStorage.setItem('token', data.token);
+                    console.log(data.user);
                     localStorage.setItem('user', JSON.stringify(data.user));
                 }
 
                 // Show success message
                 alert('Login successful!');
 
-                // Redirect to dashboard or main page
-                // window.location.href = '/dashboard.html';
+                // Redirect to dashboard
+                window.location.href = 'dashboard.html';
             })
             .catch(error => {
                 console.error('Login error:', error);
@@ -183,10 +197,117 @@ $(document).ready(function () {
 
         const email = $('#resetEmail').val();
 
-        console.log('Password reset request:', { email });
-        // TODO: Add API call to backend for password reset
-        // For now, just log the data and show success message
-        alert('If an account with this email exists, you will receive password reset instructions.');
-        showForm('#loginForm');
+        // Show loading state
+        const $submitBtn = $(this).find('button[type="submit"]');
+        const originalText = $submitBtn.text();
+        $submitBtn.text('Sending...').prop('disabled', true);
+
+        // Make API call to backend
+        fetch('http://localhost:5000/api/forgot-password', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                email: email
+            })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(errData => {
+                        throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Password reset request successful:', data);
+
+                // Show success message
+                alert(data.message);
+
+                // If we have a reset token (for testing), show it
+                if (data.resetToken) {
+                    alert(`Reset token (for testing): ${data.resetToken}`);
+                }
+
+                // Switch to login form
+                showForm('#loginForm');
+
+                // Clear the form
+                $('#forgotPasswordForm')[0].reset();
+            })
+            .catch(error => {
+                console.error('Password reset request error:', error);
+                alert('Password reset request failed: ' + error.message);
+            })
+            .finally(() => {
+                // Reset button state
+                $submitBtn.text(originalText).prop('disabled', false);
+            });
+    });
+
+    $('#resetPasswordForm').on('submit', function (e) {
+        e.preventDefault();
+
+        const resetToken = $('#resetToken').val();
+        const newPassword = $('#newPassword').val();
+        const confirmNewPassword = $('#confirmNewPassword').val();
+
+        // Basic validation
+        if (newPassword !== confirmNewPassword) {
+            alert('Passwords do not match!');
+            return;
+        }
+
+        if (newPassword.length < 6) {
+            alert('Password must be at least 6 characters long!');
+            return;
+        }
+
+        // Show loading state
+        const $submitBtn = $(this).find('button[type="submit"]');
+        const originalText = $submitBtn.text();
+        $submitBtn.text('Resetting...').prop('disabled', true);
+
+        // Make API call to backend
+        fetch('http://localhost:5000/api/reset-password', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                resetToken: resetToken,
+                newPassword: newPassword
+            })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(errData => {
+                        throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Password reset successful:', data);
+
+                // Show success message
+                alert(data.message);
+
+                // Switch to login form
+                showForm('#loginForm');
+
+                // Clear the form
+                $('#resetPasswordForm')[0].reset();
+            })
+            .catch(error => {
+                console.error('Password reset error:', error);
+                alert('Password reset failed: ' + error.message);
+            })
+            .finally(() => {
+                // Reset button state
+                $submitBtn.text(originalText).prop('disabled', false);
+            });
     });
 }); 
