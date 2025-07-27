@@ -54,19 +54,61 @@ $(document).ready(function () {
     $('#loginForm').on('submit', function (e) {
         e.preventDefault();
 
-        const email = $('#email').val();
+        const username = $('#email').val();
         const password = $('#password').val();
         const rememberMe = $('#rememberMe').is(':checked');
 
-        console.log('Login attempt:', { email, password, rememberMe });
-        // TODO: Add API call to backend for login
-        // For now, just log the data
+        // Show loading state
+        const $submitBtn = $(this).find('button[type="submit"]');
+        const originalText = $submitBtn.text();
+        $submitBtn.text('Logging in...').prop('disabled', true);
+
+        // Make API call to backend
+        fetch('http://localhost:5000/api/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                password: password
+            })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Login successful:', data);
+
+                // Store token if provided
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                }
+
+                // Show success message
+                alert('Login successful!');
+
+                // Redirect to dashboard or main page
+                // window.location.href = '/dashboard.html';
+            })
+            .catch(error => {
+                console.error('Login error:', error);
+                alert('Login failed. Please check your credentials and try again.');
+            })
+            .finally(() => {
+                // Reset button state
+                $submitBtn.text(originalText).prop('disabled', false);
+            });
     });
 
     $('#registerForm').on('submit', function (e) {
         e.preventDefault();
 
-        const name = $('#regName').val();
+        const username = $('#regName').val();
         const email = $('#regEmail').val();
         const password = $('#regPassword').val();
         const confirmPassword = $('#confirmPassword').val();
@@ -82,9 +124,58 @@ $(document).ready(function () {
             return;
         }
 
-        console.log('Registration attempt:', { name, email, password });
-        // TODO: Add API call to backend for registration
-        // For now, just log the data
+        // Show loading state
+        const $submitBtn = $(this).find('button[type="submit"]');
+        const originalText = $submitBtn.text();
+        $submitBtn.text('Registering...').prop('disabled', true);
+
+        // Make API call to backend
+        fetch('http://localhost:5000/api/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                email: email,
+                password: password,
+                role: "user"
+            })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(errData => {
+                        throw new Error(errData.message || `HTTP error! status: ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Registration successful:', data);
+
+                // Store token if provided
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                }
+
+                // Show success message
+                alert('Registration successful! You can now log in.');
+
+                // Switch to login form
+                showForm('#loginForm');
+
+                // Clear registration form
+                $('#registerForm')[0].reset();
+            })
+            .catch(error => {
+                console.error('Registration error:', error);
+                alert('Registration failed: ' + error.message);
+            })
+            .finally(() => {
+                // Reset button state
+                $submitBtn.text(originalText).prop('disabled', false);
+            });
     });
 
     $('#forgotPasswordForm').on('submit', function (e) {
