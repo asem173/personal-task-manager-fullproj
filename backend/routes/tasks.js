@@ -8,13 +8,13 @@ const { authorizeRoles } = require('../middleware/roleMiddleware');
 router.post('/:id/comments', authorizeRoles('user', 'admin'), commentController.addComment);
 router.get('/:id/comments', authorizeRoles('user', 'admin'), commentController.getComments);
 
-router.get('/', authorizeRoles('user'), taskController.getAllTasks);
-router.get('/:id', authorizeRoles('user'), taskController.getTask);
-router.post('/', authorizeRoles('user'), taskController.createTask);
-router.put('/:id', authorizeRoles('user'), taskController.updateTask);
-router.delete('/:id', authorizeRoles('user'), taskController.deleteTask);
-router.put('/:id/status', authorizeRoles('user'), taskController.updateTaskStatus);
-router.post('/:id/share', authorizeRoles('user'), sharedTaskController.shareTask);
+router.get('/', authorizeRoles('user', 'admin'), taskController.getAllTasks);
+router.get('/:id', authorizeRoles('user', 'admin'), taskController.getTask);
+router.post('/', authorizeRoles('user', 'admin'), taskController.createTask);
+router.put('/:id', authorizeRoles('user', 'admin'), taskController.updateTask);
+router.delete('/:id', authorizeRoles('user', 'admin'), taskController.deleteTask);
+router.put('/:id/status', authorizeRoles('user', 'admin'), taskController.updateTaskStatus);
+router.post('/:id/share', authorizeRoles('user', 'admin'), sharedTaskController.shareTask);
 
 
 
