@@ -21,10 +21,25 @@ const getSharedTasks = async (req, res) => {
     }
 };
 
+const getSharedTask = async (req, res) => {
+    try {
+        const taskId = parseInt(req.params.id);
+        const task = await sharedTaskModel.getSharedTask(taskId, req.user.userId);
+        if (!task) {
+            return res.status(404).json({ message: 'Shared task not found' });
+        }
+        res.status(200).json(task);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching shared task', error: error.message });
+    }
+};
+
 const updateSharedTask = async (req, res) => {
     try {
         const taskId = parseInt(req.params.id);
         console.log(req.user.userId);
+        console.log(req.body);
+        console.log(taskId);
         const task = await sharedTaskModel.updateSharedTask(taskId, req.user.userId, req.body);
         res.status(200).json(task);
     } catch (error) {
@@ -35,13 +50,10 @@ const updateSharedTask = async (req, res) => {
 const removeSharedTask = async (req, res) => {
     try {
         const taskId = parseInt(req.params.id);
-        const sharedWithId = req.body.sharedWithId;
-        console.log(req.user.userId);
-        console.log(taskId);
-        console.log(sharedWithId);
-        const task = await sharedTaskModel.removeSharedTask(taskId, req.user.userId, sharedWithId);
+        console.log('Removing access for task:', taskId, 'by user:', req.user.userId);
+        const task = await sharedTaskModel.removeSharedTask(taskId, req.user.userId);
         if (!task) {
-            return res.status(404).json({ message: 'Task not found' });
+            return res.status(404).json({ message: 'Shared task not found or access already removed' });
         }
         res.status(200).json({ message: 'Access removed successfully' });
 
@@ -53,6 +65,7 @@ const removeSharedTask = async (req, res) => {
 module.exports = {
     shareTask,
     getSharedTasks,
+    getSharedTask,
     updateSharedTask,
     removeSharedTask,
 };
