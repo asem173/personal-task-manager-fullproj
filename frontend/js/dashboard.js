@@ -167,6 +167,14 @@ $(document).ready(function () {
                                 <i class="bi bi-check-circle me-1"></i>
                                 Complete
                             </button>
+                            <button class="btn btn-outline-info btn-task comment-task" data-task-id="${task.id}">
+                                <i class="bi bi-chat-dots me-1"></i>
+                                Comments
+                            </button>
+                            <button class="btn btn-outline-warning btn-task share-task" data-task-id="${task.id}">
+                                <i class="bi bi-share me-1"></i>
+                                Share
+                            </button>
                             <button class="btn btn-outline-danger btn-task delete-task" data-task-id="${task.id}">
                                 <i class="bi bi-trash me-1"></i>
                                 Delete
@@ -196,6 +204,16 @@ $(document).ready(function () {
         $('.delete-task').on('click', function () {
             const taskId = $(this).data('task-id');
             deleteTask(taskId);
+        });
+
+        $('.comment-task').on('click', function () {
+            const taskId = $(this).data('task-id');
+            openComments(taskId);
+        });
+
+        $('.share-task').on('click', function () {
+            const taskId = $(this).data('task-id');
+            openShareTask(taskId);
         });
     }
 
@@ -509,6 +527,8 @@ $(document).ready(function () {
             case 'in_progress':
             case 'in progress':
                 return 'status-in-progress';
+            case 'not_started':
+            case 'pending':
             default:
                 return 'status-pending';
         }
@@ -533,32 +553,39 @@ $(document).ready(function () {
 
     // Task action functions
     function editTask(taskId) {
-        // TODO: Implement edit task functionality
-        alert(`Edit task ${taskId} - This feature will be implemented soon!`);
+        openEditTaskModal(taskId);
     }
 
     function completeTask(taskId) {
-        // TODO: Implement complete task functionality
-        alert(`Complete task ${taskId} - This feature will be implemented soon!`);
+        updateTaskStatus(taskId, 'completed');
     }
 
     function deleteTask(taskId) {
         if (confirm('Are you sure you want to delete this task?')) {
-            // TODO: Implement delete task functionality
-            alert(`Delete task ${taskId} - This feature will be implemented soon!`);
+            deleteTaskFromAPI(taskId);
         }
+    }
+
+    // Comments functionality (placeholder)
+    function openComments(taskId) {
+        // TODO: Implement comments functionality
+        alert(`Comments for task ${taskId} - This feature will be implemented soon!`);
+    }
+
+    // Share task functionality (placeholder)
+    function openShareTask(taskId) {
+        // TODO: Implement share task functionality
+        alert(`Share task ${taskId} - This feature will be implemented soon!`);
     }
 
     // Add new task button
     $('#add-task-btn').on('click', function () {
-        // TODO: Implement add task functionality
-        alert('Add new task - This feature will be implemented soon!');
+        openCreateTaskModal();
     });
 
     // Create first task button
     $(document).on('click', '#create-first-task', function () {
-        // TODO: Implement add task functionality
-        alert('Create your first task - This feature will be implemented soon!');
+        openCreateTaskModal();
     });
 
 
@@ -825,6 +852,318 @@ $(document).ready(function () {
                 // Reset button state
                 $saveBtn.html(originalText);
                 $saveBtn.prop('disabled', false);
+            });
+    }
+
+    // Open create task modal
+    function openCreateTaskModal() {
+        // Reset form
+        $('#createTaskForm')[0].reset();
+
+        // Set default values
+        $('#createTaskStatus').val('pending');
+        $('#createTaskPriority').val('medium');
+
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('createTaskModal'));
+        modal.show();
+    }
+
+    // Handle save create task button click
+    $('#saveCreateTaskBtn').on('click', function () {
+        createTask();
+    });
+
+    // Create task function
+    function createTask() {
+        const title = $('#createTaskTitle').val().trim();
+        const description = $('#createTaskDescription').val().trim();
+        const dueDate = $('#createTaskDueDate').val();
+        const status = $('#createTaskStatus').val();
+        const priority = $('#createTaskPriority').val();
+
+        // Validation
+        if (!title) {
+            alert('Task title is required.');
+            return;
+        }
+
+        // Show loading state
+        const $saveBtn = $('#saveCreateTaskBtn');
+        const originalText = $saveBtn.html();
+        $saveBtn.html('<i class="bi bi-arrow-clockwise me-2"></i>Creating...');
+        $saveBtn.prop('disabled', true);
+
+        // Prepare the request body
+        const requestBody = {
+            title: title,
+            description: description,
+            due_date: dueDate || null,
+            status: status,
+            priority: priority
+        };
+
+        // Make API call to create task
+        fetch('http://localhost:5000/api/tasks', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Task created:', data);
+
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('createTaskModal'));
+                modal.hide();
+
+                // Reload tasks to show new task
+                loadTasks();
+
+                // Show success message
+                alert('Task created successfully!');
+            })
+            .catch(error => {
+                console.error('Error creating task:', error);
+                alert('Failed to create task. Please try again.');
+            })
+            .finally(() => {
+                // Reset button state
+                $saveBtn.html(originalText);
+                $saveBtn.prop('disabled', false);
+            });
+    }
+
+    // Open edit task modal
+    function openEditTaskModal(taskId) {
+        // Fetch task data to populate the form
+        fetch(`http://localhost:5000/api/tasks/${taskId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Task data loaded:', data);
+                console.log('Task status:', data.status);
+
+                // Populate the form with current data
+                $('#editTaskTitle').val(data.title || '');
+                $('#editTaskDescription').val(data.description || '');
+                $('#editTaskDueDate').val(data.due_date ? data.due_date.split('T')[0] : '');
+
+                // Map backend status to dropdown values
+                let mappedStatus = 'pending';
+                if (data.status === 'not_started' || data.status === 'pending') {
+                    mappedStatus = 'pending';
+                } else if (data.status === 'in_progress') {
+                    mappedStatus = 'in_progress';
+                } else if (data.status === 'completed') {
+                    mappedStatus = 'completed';
+                }
+
+                console.log('Raw status from API:', data.status);
+                console.log('Mapped status:', mappedStatus);
+                $('#editTaskStatus').val(mappedStatus);
+                console.log('Final selected value:', $('#editTaskStatus').val());
+
+                $('#editTaskPriority').val(data.priority || 'medium');
+
+                // Store the task ID for the save function
+                $('#editTaskModal').data('editing-task-id', taskId);
+
+                // Show the modal
+                const modal = new bootstrap.Modal(document.getElementById('editTaskModal'));
+                modal.show();
+            })
+            .catch(error => {
+                console.error('Error loading task data:', error);
+                alert('Failed to load task data. Please try again.');
+            });
+    }
+
+    // Handle save edit task button click
+    $('#saveEditTaskBtn').on('click', function () {
+        updateTask();
+    });
+
+    // Update task function
+    function updateTask() {
+        const taskId = $('#editTaskModal').data('editing-task-id');
+        const title = $('#editTaskTitle').val().trim();
+        const description = $('#editTaskDescription').val().trim();
+        const dueDate = $('#editTaskDueDate').val();
+        const status = $('#editTaskStatus').val();
+        const priority = $('#editTaskPriority').val();
+
+        console.log('Updating task with status:', status);
+        console.log('All form values:', { title, description, dueDate, status, priority });
+
+        // Validation
+        if (!title) {
+            alert('Task title is required.');
+            return;
+        }
+
+        // Show loading state
+        const $saveBtn = $('#saveEditTaskBtn');
+        const originalText = $saveBtn.html();
+        $saveBtn.html('<i class="bi bi-arrow-clockwise me-2"></i>Saving...');
+        $saveBtn.prop('disabled', true);
+
+        // Prepare the request body
+        const requestBody = {
+            title: title,
+            description: description,
+            due_date: dueDate || null,
+            status: status,
+            priority: priority
+        };
+
+        console.log('Sending request body:', requestBody);
+
+        // Make API call to update task
+        fetch(`http://localhost:5000/api/tasks/${taskId}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Task updated:', data);
+                console.log('Response status field:', data.status);
+
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editTaskModal'));
+                modal.hide();
+
+                // Reload tasks to show updated task
+                loadTasks();
+
+                // Show success message
+                alert('Task updated successfully!');
+            })
+            .catch(error => {
+                console.error('Error updating task:', error);
+                alert('Failed to update task. Please try again.');
+            })
+            .finally(() => {
+                // Reset button state
+                $saveBtn.html(originalText);
+                $saveBtn.prop('disabled', false);
+            });
+    }
+
+    // Update task status function
+    function updateTaskStatus(taskId, status) {
+        // Show loading state
+        const $completeBtn = $(`.complete-task[data-task-id="${taskId}"]`);
+        const originalText = $completeBtn.html();
+        $completeBtn.html('<i class="bi bi-arrow-clockwise me-2"></i>Completing...');
+        $completeBtn.prop('disabled', true);
+
+        // Prepare the request body
+        const requestBody = {
+            status: status
+        };
+
+        // Make API call to update task status
+        fetch(`http://localhost:5000/api/tasks/${taskId}/status`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Task status updated:', data);
+
+                // Reload tasks to show updated status
+                loadTasks();
+
+                // Show success message
+                alert('Task completed successfully!');
+            })
+            .catch(error => {
+                console.error('Error updating task status:', error);
+                alert('Failed to complete task. Please try again.');
+            })
+            .finally(() => {
+                // Reset button state
+                $completeBtn.html(originalText);
+                $completeBtn.prop('disabled', false);
+            });
+    }
+
+    // Delete task function
+    function deleteTaskFromAPI(taskId) {
+        // Show loading state
+        const $deleteBtn = $(`.delete-task[data-task-id="${taskId}"]`);
+        const originalText = $deleteBtn.html();
+        $deleteBtn.html('<i class="bi bi-arrow-clockwise me-2"></i>Deleting...');
+        $deleteBtn.prop('disabled', true);
+
+        // Make API call to delete task
+        fetch(`http://localhost:5000/api/tasks/${taskId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Task deleted:', data);
+
+                // Reload tasks to show updated list
+                loadTasks();
+
+                // Show success message
+                alert('Task deleted successfully!');
+            })
+            .catch(error => {
+                console.error('Error deleting task:', error);
+                alert('Failed to delete task. Please try again.');
+            })
+            .finally(() => {
+                // Reset button state
+                $deleteBtn.html(originalText);
+                $deleteBtn.prop('disabled', false);
             });
     }
 }); 

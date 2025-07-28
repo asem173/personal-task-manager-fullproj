@@ -17,8 +17,8 @@ const createTask = async (task, userId) => {
 };
 
 const updateTask = async (taskId, task, userId) => {
-    const { title, description, due_date } = task;
-    const result = await pool.query('UPDATE tasks SET title = $1, description = $2, due_date = $3 WHERE id = $4 AND owner_id = $5 RETURNING *', [title, description, due_date, taskId, userId]);
+    const { title, description, due_date, status, priority } = task;
+    const result = await pool.query('UPDATE tasks SET title = $1, description = $2, due_date = $3, status = $4, priority = $5 WHERE id = $6 AND owner_id = $7 RETURNING *', [title, description, due_date, status, priority, taskId, userId]);
     return result.rows[0];
 };
 
