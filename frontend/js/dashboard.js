@@ -368,16 +368,38 @@ $(document).ready(function () {
             </div>
         `);
 
-        // TODO: Implement shared tasks API call
-        setTimeout(() => {
-            $container.html(`
-                <div class="no-tasks">
-                    <i class="bi bi-share display-1 text-muted mb-3"></i>
-                    <h4 class="text-muted">No shared tasks</h4>
-                    <p class="text-muted">No tasks have been shared with you yet.</p>
-                </div>
-            `);
-        }, 1000);
+        // Make API call to get shared tasks
+        fetch('http://localhost:5000/api/shared-tasks', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Shared tasks loaded:', data);
+                console.log('First shared task data:', data[0]);
+                displaySharedTasks(data, $container);
+            })
+            .catch(error => {
+                console.error('Error loading shared tasks:', error);
+                $container.html(`
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Failed to load shared tasks. Please try again later.
+                        <button class="btn btn-outline-danger ms-3" onclick="loadSharedTasks()">
+                            <i class="bi bi-arrow-clockwise me-2"></i>
+                            Retry
+                        </button>
+                    </div>
+                `);
+            });
     }
 
     // Load notifications
@@ -566,16 +588,334 @@ $(document).ready(function () {
         }
     }
 
-    // Comments functionality (placeholder)
+    // Comments functionality
     function openComments(taskId) {
-        // TODO: Implement comments functionality
-        alert(`Comments for task ${taskId} - This feature will be implemented soon!`);
+        // Store the task ID for the comments functions
+        $('#commentsModal').data('task-id', taskId);
+
+        // Reset the comment form
+        $('#newComment').val('');
+
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('commentsModal'));
+        modal.show();
+
+        // Load comments for this task
+        loadComments(taskId);
     }
 
-    // Share task functionality (placeholder)
+    // Share task functionality
     function openShareTask(taskId) {
-        // TODO: Implement share task functionality
-        alert(`Share task ${taskId} - This feature will be implemented soon!`);
+        // Store the task ID for the share functions
+        $('#shareTaskModal').data('task-id', taskId);
+
+        // Reset the form
+        $('#shareTaskForm')[0].reset();
+
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('shareTaskModal'));
+        modal.show();
+    }
+
+    // Load comments for a task
+    function loadComments(taskId) {
+        const $container = $('#commentsContainer');
+
+        $container.html(`
+            <div class="loading-spinner">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3">Loading comments...</p>
+            </div>
+        `);
+
+        // Make API call to get comments
+        fetch(`http://localhost:5000/api/tasks/${taskId}/comments`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Comments loaded:', data);
+                displayComments(data, $container);
+            })
+            .catch(error => {
+                console.error('Error loading comments:', error);
+                $container.html(`
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Failed to load comments. Please try again later.
+                        <button class="btn btn-outline-danger ms-3" onclick="loadComments(${taskId})">
+                            <i class="bi bi-arrow-clockwise me-2"></i>
+                            Retry
+                        </button>
+                    </div>
+                `);
+            });
+    }
+
+    // Display comments
+    function displayComments(comments, container) {
+        if (!comments || comments.length === 0) {
+            container.html(`
+                <div class="text-center text-muted">
+                    <i class="bi bi-chat-dots display-4 mb-3"></i>
+                    <h5>No comments yet</h5>
+                    <p>Be the first to add a comment!</p>
+                </div>
+            `);
+            return;
+        }
+
+        const commentsHtml = comments.map(comment => {
+            const commentDate = new Date(comment.created_at).toLocaleString();
+            return `
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <p class="card-text">${escapeHtml(comment.comment)}</p>
+                                <small class="text-muted">
+                                    <i class="bi bi-person me-1"></i>
+                                    ${escapeHtml(comment.username || 'Unknown User')}
+                                </small>
+                            </div>
+                            <small class="text-muted">
+                                ${commentDate}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        container.html(commentsHtml);
+    }
+
+    // Handle add comment button click
+    $('#addCommentBtn').on('click', function () {
+        addComment();
+    });
+
+    // Add comment function
+    function addComment() {
+        const taskId = $('#commentsModal').data('task-id');
+        const commentText = $('#newComment').val().trim();
+
+        if (!commentText) {
+            alert('Please enter a comment.');
+            return;
+        }
+
+        // Show loading state
+        const $addBtn = $('#addCommentBtn');
+        const originalText = $addBtn.html();
+        $addBtn.html('<i class="bi bi-arrow-clockwise me-2"></i>Adding...');
+        $addBtn.prop('disabled', true);
+
+        // Prepare the request body
+        const requestBody = {
+            comment: commentText
+        };
+
+        // Make API call to add comment
+        fetch(`http://localhost:5000/api/tasks/${taskId}/comments`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Comment added:', data);
+
+                // Clear the comment form
+                $('#newComment').val('');
+
+                // Reload comments to show the new comment
+                loadComments(taskId);
+
+                // Show success message
+                alert('Comment added successfully!');
+            })
+            .catch(error => {
+                console.error('Error adding comment:', error);
+                alert('Failed to add comment. Please try again.');
+            })
+            .finally(() => {
+                // Reset button state
+                $addBtn.html(originalText);
+                $addBtn.prop('disabled', false);
+            });
+    }
+
+
+
+    // Handle share task button click
+    $('#shareTaskBtn').on('click', function () {
+        shareTask();
+    });
+
+    // Share task function
+    function shareTask() {
+        const taskId = $('#shareTaskModal').data('task-id');
+        const sharedWithId = $('#shareWithUserId').val();
+        const permission = $('#sharePermission').val();
+
+        if (!sharedWithId) {
+            alert('Please enter a user ID to share with.');
+            return;
+        }
+
+        if (parseInt(sharedWithId) === user.id) {
+            alert('You cannot share a task with yourself.');
+            return;
+        }
+
+        // Show loading state
+        const $shareBtn = $('#shareTaskBtn');
+        const originalText = $shareBtn.html();
+        $shareBtn.html('<i class="bi bi-arrow-clockwise me-2"></i>Sharing...');
+        $shareBtn.prop('disabled', true);
+
+        // Prepare the request body
+        const requestBody = {
+            sharedWithId: parseInt(sharedWithId),
+            permission: permission
+        };
+
+        // Make API call to share task
+        fetch(`http://localhost:5000/api/tasks/${taskId}/share`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Task shared:', data);
+
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('shareTaskModal'));
+                modal.hide();
+
+                // Show success message
+                alert('Task shared successfully!');
+            })
+            .catch(error => {
+                console.error('Error sharing task:', error);
+                alert('Failed to share task. Please try again.');
+            })
+            .finally(() => {
+                // Reset button state
+                $shareBtn.html(originalText);
+                $shareBtn.prop('disabled', false);
+            });
+    }
+
+    // Display shared tasks
+    function displaySharedTasks(sharedTasks, container) {
+        if (!sharedTasks || sharedTasks.length === 0) {
+            container.html(`
+                <div class="no-tasks">
+                    <i class="bi bi-share display-1 text-muted mb-3"></i>
+                    <h4 class="text-muted">No shared tasks</h4>
+                    <p class="text-muted">No tasks have been shared with you yet.</p>
+                </div>
+            `);
+            return;
+        }
+
+        const tasksHtml = sharedTasks.map(task => {
+            console.log('Processing task:', task);
+            console.log('Task permission:', task.permission);
+            const statusClass = getStatusClass(task.status);
+            const priorityClass = getPriorityClass(task.priority);
+            const dueDate = task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date';
+
+            return `
+                <div class="task-card">
+                    <div class="task-header">
+                        <h5 class="task-title">${escapeHtml(task.title)}</h5>
+                        <p class="task-description">${escapeHtml(task.description || 'No description')}</p>
+                        <div class="task-meta">
+                            <div class="d-flex gap-2">
+                                <span class="task-status ${statusClass}">${task.status}</span>
+                                <span class="task-priority ${priorityClass}">${task.priority}</span>
+                                <span class="badge bg-info">Shared by: ${task.owner_id}</span>
+                                <span class="badge ${task.permission === 'write' ? 'bg-success' : 'bg-warning'}">${task.permission === 'write' ? 'Write Access' : 'Read Only'}</span>
+                            </div>
+                            <small class="text-muted">
+                                <i class="bi bi-calendar me-1"></i>
+                                Due: ${dueDate}
+                            </small>
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-primary btn-task edit-shared-task" data-task-id="${task.id}">
+                                <i class="bi bi-pencil me-1"></i>
+                                Edit
+                            </button>
+                            <button class="btn btn-outline-danger btn-task remove-access" data-task-id="${task.id}">
+                                <i class="bi bi-person-x me-1"></i>
+                                Remove Access
+                            </button>
+                        </div>
+                        <small class="text-muted">
+                            Shared: ${new Date(task.created_at).toLocaleDateString()}
+                        </small>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        container.html(tasksHtml);
+
+        // Add event listeners for shared task actions
+        $('.edit-shared-task').on('click', function () {
+            const taskId = $(this).data('task-id');
+            editSharedTask(taskId);
+        });
+
+        $('.remove-access').on('click', function () {
+            const taskId = $(this).data('task-id');
+            removeSharedAccess(taskId);
+        });
+    }
+
+    // Shared task action functions
+    function editSharedTask(taskId) {
+        openEditSharedTaskModal(taskId);
+    }
+
+    function removeSharedAccess(taskId) {
+        if (confirm('Are you sure you want to remove access to this task?')) {
+            removeSharedAccessFromAPI(taskId);
+        }
     }
 
     // Add new task button
@@ -1166,4 +1506,164 @@ $(document).ready(function () {
                 $deleteBtn.prop('disabled', false);
             });
     }
+
+    // Open edit shared task modal
+    function openEditSharedTaskModal(taskId) {
+        // Fetch shared task data to populate the form
+        fetch(`http://localhost:5000/api/shared-tasks/${taskId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Shared task data loaded:', data);
+
+                // Populate the form with current data
+                $('#editTaskTitle').val(data.title || '');
+                $('#editTaskDescription').val(data.description || '');
+                $('#editTaskDueDate').val(data.due_date ? data.due_date.split('T')[0] : '');
+                $('#editTaskStatus').val(data.status || 'pending');
+                $('#editTaskPriority').val(data.priority || 'medium');
+
+                // Store the task ID for the save function
+                $('#editTaskModal').data('editing-shared-task-id', taskId);
+
+                // Show the modal
+                const modal = new bootstrap.Modal(document.getElementById('editTaskModal'));
+                modal.show();
+            })
+            .catch(error => {
+                console.error('Error loading shared task data:', error);
+                alert('Failed to load shared task data. Please try again.');
+            });
+    }
+
+    // Update shared task function
+    function updateSharedTask() {
+        const taskId = $('#editTaskModal').data('editing-shared-task-id');
+        const title = $('#editTaskTitle').val().trim();
+        const description = $('#editTaskDescription').val().trim();
+        const dueDate = $('#editTaskDueDate').val();
+        const status = $('#editTaskStatus').val();
+        const priority = $('#editTaskPriority').val();
+
+        // Validation
+        if (!title) {
+            alert('Task title is required.');
+            return;
+        }
+
+        // Show loading state
+        const $saveBtn = $('#saveEditTaskBtn');
+        const originalText = $saveBtn.html();
+        $saveBtn.html('<i class="bi bi-arrow-clockwise me-2"></i>Saving...');
+        $saveBtn.prop('disabled', true);
+
+        // Prepare the request body
+        const requestBody = {
+            title: title,
+            description: description,
+            due_date: dueDate || null,
+            status: status,
+            priority: priority
+        };
+
+        // Make API call to update shared task
+        fetch(`http://localhost:5000/api/shared-tasks/${taskId}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Shared task updated:', data);
+
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editTaskModal'));
+                modal.hide();
+
+                // Reload shared tasks to show updated task
+                loadSharedTasks();
+
+                // Show success message
+                alert('Shared task updated successfully!');
+            })
+            .catch(error => {
+                console.error('Error updating shared task:', error);
+                alert('Failed to update shared task. Please try again.');
+            })
+            .finally(() => {
+                // Reset button state
+                $saveBtn.html(originalText);
+                $saveBtn.prop('disabled', false);
+            });
+    }
+
+    // Remove shared access function
+    function removeSharedAccessFromAPI(taskId) {
+        // Show loading state
+        const $removeBtn = $(`.remove-access[data-task-id="${taskId}"]`);
+        const originalText = $removeBtn.html();
+        $removeBtn.html('<i class="bi bi-arrow-clockwise me-2"></i>Removing...');
+        $removeBtn.prop('disabled', true);
+
+        // Make API call to remove shared access
+        fetch(`http://localhost:5000/api/shared-tasks/${taskId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Shared access removed:', data);
+
+                // Reload shared tasks to show updated list
+                loadSharedTasks();
+
+                // Show success message
+                alert('Access removed successfully!');
+            })
+            .catch(error => {
+                console.error('Error removing shared access:', error);
+                alert('Failed to remove access. Please try again.');
+            })
+            .finally(() => {
+                // Reset button state
+                $removeBtn.html(originalText);
+                $removeBtn.prop('disabled', false);
+            });
+    }
+
+    // Update the save edit task button to handle both regular and shared tasks
+    $('#saveEditTaskBtn').off('click').on('click', function () {
+        const sharedTaskId = $('#editTaskModal').data('editing-shared-task-id');
+        if (sharedTaskId) {
+            updateSharedTask();
+        } else {
+            updateTask();
+        }
+    });
 }); 
